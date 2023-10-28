@@ -102,6 +102,18 @@ impl DeltaPdf {
         self.images_path = Some(path);
     }
 
+    /// Convert the parsed Delta to a string.
+    /// This will ignore formatting and images.
+    pub fn to_string(&self) -> String {
+        let mut result = String::new();
+        for op in &self.delta.ops {
+            if let Change::Insert(DeltaType::String(text)) = &op.change {
+                result.push_str(&text);
+            }
+        }
+        result
+    }
+
     /// Set the heading font size for the previous string
     fn set_heading(strings: &mut [PdfElement], font_size: u8) {
         // For some reason the heading is applied to the newline character that follows the heading
