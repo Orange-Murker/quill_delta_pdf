@@ -1,0 +1,17 @@
+[package]
+name = "quill_delta_pdf"
+version = "0.1.0"
+edition = "2021"
+description = "Convert Quill Delta to PDF"
+repository = "https://github.com/Orange-Murker/quill_delta_pdf"
+license = "MIT OR Apache-2.0"
+keywords = ["quill", "delta",  "quilljs", "pdf", "convert"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde = { version = "1.0.190", features = ["derive"] }
+serde_json = "1.0.107"
+serde_with = { version = "3.4.0", features = ["macros"] }
+genpdf = { version = "0.2.0", features = ["images"] }
+url = { version = "2.4.1", features = ["serde"] }
