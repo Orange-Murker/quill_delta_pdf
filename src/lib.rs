@@ -13,26 +13,21 @@
 //! Only inserts are rendered. Deletes and retains are parsed but ignored.
 //!
 //! ## Example Usage
-//! ```rust
-//! use quill_delta_pdf::DeltaPdf;
 //!
-//!use std::fs;
+//! ```
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let default_font = genpdf::fonts::from_files("./fonts", "Inter", None)?;
 //!
-
-//!fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!    let default_font = genpdf::fonts::from_files("./fonts", "Inter", None)
-//!        .expect("Failed to load the default font family");
+//!     let mut doc = genpdf::Document::new(default_font);
 //!
-//!    let mut doc = genpdf::Document::new(default_font);
+//!     let test = std::fs::read_to_string("./test.json")?;
+//!     let mut delta = quill_delta_pdf::DeltaPdf::new(test)?;
+//!     delta.set_image_dir("./images".into());
+//!     delta.write_to_pdf(&mut doc)?;
 //!
-//!    let test = fs::read_to_string("./test.json")?;
-//!    let mut delta = DeltaPdf::new(test)?;
-//!    delta.set_image_dir("./images".into());
-//!    delta.write_to_pdf(&mut doc)?;
-//!
-//!    doc.render_to_file("test.pdf")?;
-//!    Ok(())
-//!}
+//!     doc.render_to_file("test.pdf")?;
+//!     Ok(())
+//! }
 //! ```
 //!
 //! This library makes use of genpdf. If you want to customize the look of the PDF file feel free
@@ -50,6 +45,7 @@ use genpdf::{
 };
 
 #[derive(Debug)]
+/// Error type for DeltaPdf
 pub enum DeltaPdfError {
     ImageUrlError,
     ImagePathNotSet,
@@ -82,12 +78,14 @@ enum PdfElement {
     Image(Image),
 }
 
+/// Struct that holds the parsed Delta.
 pub struct DeltaPdf {
     delta: Delta,
     images_path: Option<PathBuf>,
 }
 
 impl DeltaPdf {
+    /// Parse a Quill Delta.
     pub fn new(delta: String) -> serde_json::Result<DeltaPdf> {
         let delta_serialized: Delta = serde_json::from_str(&delta)?;
         Ok(Self {
@@ -96,10 +94,15 @@ impl DeltaPdf {
         })
     }
 
+    /// Set the location of where images are located.
+    /// The last segment of the image url will be used as the image name.
+    /// If the URL is: `https://example.com/image.png` then
+    /// the library will try to get `image.png` from the image directory.
     pub fn set_image_dir(&mut self, path: PathBuf) {
         self.images_path = Some(path);
     }
 
+    /// Set the heading font size for the previous string
     fn set_heading(strings: &mut [PdfElement], font_size: u8) {
         // For some reason the heading is applied to the newline character that follows the heading
         // So we need to get the previous string to test the font size
@@ -108,6 +111,7 @@ impl DeltaPdf {
         }
     }
 
+    /// Write the parsed Delta to a PDF document
     pub fn write_to_pdf(&self, document: &mut Document) -> Result<(), DeltaPdfError> {
         let mut pdf_elements: Vec<PdfElement> = Vec::new();
 
