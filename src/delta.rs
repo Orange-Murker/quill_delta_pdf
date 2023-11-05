@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use serde::Deserialize;
 use serde_with::{serde_as, EnumMap};
 use url::Url;
@@ -42,4 +44,29 @@ pub struct Op {
 #[derive(Deserialize, Debug)]
 pub struct Delta {
     pub ops: Vec<Op>,
+}
+
+impl Delta {
+    /// Creates an empty Delta
+    pub fn new() -> Self {
+        Self { ops: Vec::new() }
+    }
+
+    /// Add a new Op to the Delta
+    pub fn push(&mut self, op: Op) {
+        self.ops.push(op);
+    }
+
+    /// Extend one Delta with another
+    pub fn extend(&mut self, other: Delta) {
+        self.ops.extend(other.ops);
+    }
+}
+
+impl FromStr for Delta {
+    type Err = serde_json::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        serde_json::from_str(s)
+    }
 }

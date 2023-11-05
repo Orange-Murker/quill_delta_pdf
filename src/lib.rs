@@ -33,7 +33,7 @@
 //! This library makes use of genpdf. If you want to customize the look of the PDF file feel free
 //! to take a look at their [documentation](https://docs.rs/genpdf/latest/genpdf/index.html)
 
-mod delta;
+pub mod delta;
 
 use std::path::PathBuf;
 
@@ -73,6 +73,15 @@ impl From<genpdf::error::Error> for DeltaPdfError {
     }
 }
 
+impl From<Delta> for DeltaPdf {
+    fn from(delta: Delta) -> Self {
+        Self {
+            delta,
+            images_path: None,
+        }
+    }
+}
+
 enum PdfElement {
     String(StyledString),
     Image(Image),
@@ -80,18 +89,15 @@ enum PdfElement {
 
 /// Struct that holds the parsed Delta.
 pub struct DeltaPdf {
-    delta: Delta,
+    pub delta: Delta,
     images_path: Option<PathBuf>,
 }
 
 impl DeltaPdf {
     /// Parse a Quill Delta.
     pub fn new(delta: String) -> serde_json::Result<DeltaPdf> {
-        let delta_serialized: Delta = serde_json::from_str(&delta)?;
-        Ok(Self {
-            delta: delta_serialized,
-            images_path: None,
-        })
+        let delta_serialized: Delta = delta.parse()?;
+        Ok(delta_serialized.into())
     }
 
     /// Set the location of where images are located.
