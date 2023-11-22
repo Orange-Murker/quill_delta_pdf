@@ -190,9 +190,9 @@ impl DeltaPdf {
                                                 &format!("{}. ", ordered_list_index),
                                             );
                                             ordered_list_index += 1;
+                                            ordered_list_item = true;
                                         }
                                     }
-                                    ordered_list_item = true;
                                 }
                                 _ => (),
                             }
