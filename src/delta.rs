@@ -18,10 +18,18 @@ pub enum DeltaType {
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "lowercase")]
+pub enum ListType {
+    Bullet,
+    Ordered,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "lowercase")]
 pub enum Attribute {
     Bold(bool),
     Italic(bool),
     Header(u8),
+    List(ListType),
 }
 
 #[derive(Deserialize, Debug)]

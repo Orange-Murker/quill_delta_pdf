@@ -8,6 +8,7 @@
 //! - bold
 //! - italic
 //! - header
+//! - list
 //! - image
 //!
 //! Only inserts are rendered. Deletes and retains are parsed but ignored.
@@ -37,7 +38,7 @@ pub mod delta;
 
 use std::path::PathBuf;
 
-use delta::{Attribute, Change, Delta, DeltaType};
+use delta::{Attribute, Change, Delta, DeltaType, ListType};
 use genpdf::{
     elements::{Image, Paragraph},
     style::{Style, StyledString},
@@ -129,18 +130,35 @@ impl DeltaPdf {
         }
     }
 
+    fn set_prefix(strings: &mut [PdfElement], prefix: &str) {
+        if let Some(PdfElement::String(last)) = strings.last_mut() {
+            // Insert the prefix after the last newline character or at the start of the string
+            let first_char_index = last.s.rfind(|c: char| c == '\n').map_or(0, |x| x + 1);
+            last.s.insert_str(first_char_index, prefix);
+        }
+    }
+
     /// Write the parsed Delta to a PDF document
     pub fn write_to_pdf(&self, document: &mut Document) -> Result<(), DeltaPdfError> {
         let mut pdf_elements: Vec<PdfElement> = Vec::new();
+
+        let mut ordered_list_index: u32 = 1;
+
+        // Store whether the last operations were an ordered list item
+        let mut previous_lists: u32 = 0;
 
         for op in &self.delta.ops {
             let delta_type = match &op.change {
                 Change::Insert(x) | Change::Delete(x) | Change::Retain(x) => x,
             };
 
+            // Stores whether the current op is an ordered list item
+            let mut ordered_list_item = false;
+
             match delta_type {
                 DeltaType::String(text) => {
                     let mut style = Style::new();
+
                     if let Some(attributes) = &op.attributes {
                         for attribute in attributes {
                             match attribute {
@@ -148,10 +166,39 @@ impl DeltaPdf {
                                 Attribute::Italic(true) => style.set_italic(),
                                 Attribute::Header(1) => Self::set_heading(&mut pdf_elements, 18),
                                 Attribute::Header(2) => Self::set_heading(&mut pdf_elements, 16),
+                                Attribute::List(style) => {
+                                    match style {
+                                        ListType::Bullet => {
+                                            Self::set_prefix(&mut pdf_elements, "• ")
+                                        }
+                                        ListType::Ordered => {
+                                            // Reset the index if the item before the previous
+                                            // item was not an ordered list or if the last list
+                                            // item contains a newline which means that we
+                                            // have two ordered lists in a row
+                                            if let Some(PdfElement::String(last)) =
+                                                pdf_elements.last_mut()
+                                            {
+                                                if previous_lists >> 1 & 1 == 0
+                                                    || last.s.contains('\n')
+                                                {
+                                                    ordered_list_index = 1;
+                                                }
+                                            }
+                                            Self::set_prefix(
+                                                &mut pdf_elements,
+                                                &format!("{}. ", ordered_list_index),
+                                            );
+                                            ordered_list_index += 1;
+                                        }
+                                    }
+                                    ordered_list_item = true;
+                                }
                                 _ => (),
                             }
                         }
                     }
+
                     pdf_elements.push(PdfElement::String(StyledString::new(text, style)));
                 }
                 DeltaType::Image(image) => {
@@ -170,6 +217,8 @@ impl DeltaPdf {
                     pdf_elements.push(PdfElement::Image(image));
                 }
             }
+
+            previous_lists = previous_lists << 1 | ordered_list_item as u32;
         }
 
         let mut paragraph = Paragraph::default();
