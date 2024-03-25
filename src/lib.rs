@@ -160,7 +160,7 @@ impl DeltaPdf {
                                 Attribute::List(list_type) => {
                                     match list_type {
                                         ListType::Bullet => {
-                                            Self::set_prefix(&mut pdf_elements, "• ")
+                                            Self::set_prefix(&mut pdf_elements, "      • ")
                                         }
                                         ListType::Ordered => {
                                             let mut elem_iter = pdf_elements.iter().rev().fuse();
@@ -180,7 +180,7 @@ impl DeltaPdf {
 
                                             Self::set_prefix(
                                                 &mut pdf_elements,
-                                                &format!("{}. ", ordered_list_index),
+                                                &format!("      {}. ", ordered_list_index),
                                             );
                                             ordered_list_index += 1;
                                         }
