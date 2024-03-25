@@ -42,7 +42,7 @@ use delta::{Attribute, Change, Delta, DeltaType, ListType};
 use genpdf::{
     elements::{Image, Paragraph},
     style::{Style, StyledString},
-    Document, Element,
+    Document, Element, Margins,
 };
 
 #[derive(Debug)]
@@ -123,18 +123,15 @@ impl DeltaPdf {
 
     /// Set the heading font size for the previous string
     fn set_heading(strings: &mut [PdfElement], font_size: u8) {
-        // For some reason the heading is applied to the newline character that follows the heading
-        // So we need to get the previous string to test the font size
         if let Some(PdfElement::String(last)) = strings.last_mut() {
             last.style.set_font_size(font_size);
         }
     }
 
+    // Sets the prefix for the previous string
     fn set_prefix(strings: &mut [PdfElement], prefix: &str) {
         if let Some(PdfElement::String(last)) = strings.last_mut() {
-            // Insert the prefix after the last newline character or at the start of the string
-            let first_char_index = last.s.rfind(|c: char| c == '\n').map_or(0, |x| x + 1);
-            last.s.insert_str(first_char_index, prefix);
+            last.s.insert_str(0, prefix);
         }
     }
 
@@ -144,16 +141,10 @@ impl DeltaPdf {
 
         let mut ordered_list_index: u32 = 1;
 
-        // Store whether the last operations were an ordered list item
-        let mut previous_lists: u32 = 0;
-
         for op in &self.delta.ops {
             let delta_type = match &op.change {
                 Change::Insert(x) | Change::Delete(x) | Change::Retain(x) => x,
             };
-
-            // Stores whether the current op is an ordered list item
-            let mut ordered_list_item = false;
 
             match delta_type {
                 DeltaType::String(text) => {
@@ -166,31 +157,32 @@ impl DeltaPdf {
                                 Attribute::Italic(true) => style.set_italic(),
                                 Attribute::Header(1) => Self::set_heading(&mut pdf_elements, 18),
                                 Attribute::Header(2) => Self::set_heading(&mut pdf_elements, 16),
-                                Attribute::List(style) => {
-                                    match style {
+                                Attribute::List(list_type) => {
+                                    match list_type {
                                         ListType::Bullet => {
                                             Self::set_prefix(&mut pdf_elements, "• ")
                                         }
                                         ListType::Ordered => {
-                                            // Reset the index if the item before the previous
-                                            // item was not an ordered list or if the last list
-                                            // item contains a newline which means that we
-                                            // have two ordered lists in a row
-                                            if let Some(PdfElement::String(last)) =
-                                                pdf_elements.last_mut()
+                                            let mut elem_iter = pdf_elements.iter().rev().fuse();
+                                            let _current = elem_iter.next();
+
+                                            // Reset the index if the previous line does not
+                                            // contain the previous index prefix
+                                            if let Some(PdfElement::String(last)) = elem_iter.next()
                                             {
-                                                if previous_lists >> 1 & 1 == 0
-                                                    || last.s.contains('\n')
-                                                {
+                                                if !last.s.contains(&format!(
+                                                    "{}. ",
+                                                    ordered_list_index.saturating_sub(1)
+                                                )) {
                                                     ordered_list_index = 1;
                                                 }
                                             }
+
                                             Self::set_prefix(
                                                 &mut pdf_elements,
                                                 &format!("{}. ", ordered_list_index),
                                             );
                                             ordered_list_index += 1;
-                                            ordered_list_item = true;
                                         }
                                     }
                                 }
@@ -199,7 +191,20 @@ impl DeltaPdf {
                         }
                     }
 
-                    pdf_elements.push(PdfElement::String(StyledString::new(text, style)));
+                    let strings = text.split('\n');
+
+                    for (i, string) in strings.enumerate() {
+                        // Always append the first string to the last string to handle lines correctly
+                        if i == 0 {
+                            if let Some(PdfElement::String(last)) = pdf_elements.last_mut() {
+                                last.s.push_str(string);
+                                continue;
+                            }
+                        }
+
+                        let styled = StyledString::new(string, style);
+                        pdf_elements.push(PdfElement::String(styled));
+                    }
                 }
                 DeltaType::Image(image) => {
                     let image_name = image
@@ -217,34 +222,18 @@ impl DeltaPdf {
                     pdf_elements.push(PdfElement::Image(image));
                 }
             }
-
-            previous_lists = previous_lists << 1 | ordered_list_item as u32;
         }
 
-        let mut paragraph = Paragraph::default();
         for element in pdf_elements {
             match element {
                 PdfElement::String(string) => {
-                    let mut lines = string.s.split('\n');
-
-                    // The first line will be pushed to an existing paragraph
-                    let line = lines.next().unwrap_or_default();
-                    paragraph.push_styled(line, string.style);
-
-                    // If we have more than one line then create a new paragraph for each
-                    for line in lines {
-                        // Push the current paragraph before we override it
-                        document.push(paragraph);
-                        paragraph = Paragraph::default();
-                        paragraph.push_styled(line, string.style);
-                    }
+                    document.push(Paragraph::new(string).padded(Margins::trbl(0, 0, 1, 0)));
                 }
                 PdfElement::Image(image) => {
                     document.push(image.padded(1));
                 }
             }
         }
-        document.push(paragraph);
         Ok(())
     }
 }
